@@ -1,7 +1,9 @@
 var HTTP 	= require('http');
 var PATH 	= require('path');
 var FS 		= require('fs');
+var QS      = require('querystring');
 var CP 		= require('child_process');
+var MON  	= require('./goofy-monitor');
 
 var CONFIG    = null;
 var PROCESSES = {};
@@ -57,61 +59,89 @@ function do_config(req,res){
 	res.end(JSON.stringify(CONFIG));
 }
 
-module.exports = function SERVER(){
-	this.http = HTTP.createServer(function (req, res) {
-		switch(req.url){
-			case '/' 		:
-			case '/status' 	: 
-				do_status(req,res); 
-			break;
-			case '/pid' 	: 
-				do_pid(req,res); 
-			break;
-			case '/stop' 	: 
-				do_exit(req,res); 
-			break;
-			case '/config' 	: 
-				do_config(req,res); 
-			break;
-			default			: 
-				do_error(req,res,{
-					code 	: "UNKNOWN_ACTION",
-					message : "action "+req.url+" not found"
-				});
-			break;
-		}		
-	});
-	this.start = function(){
-		init();
-		for(var p in CONFIG){
-			var proc   = CONFIG[p];
-			if(proc.exec.charAt(0)!='/' && proc.cwd){
-				proc.exec = PATH.resolve(proc.cwd,proc.exec);
+
+
+function SERVER(program){
+	var self    = this;
+	var http 	= HTTP.createServer(function (req, res) {
+		try{
+			var url     = req.url.substring(1);
+			var query,method;
+			if(url.indexOf('?')>0){
+				query = QS.parse(url.substring(url.indexOf('?')+1));
+				method = url.substring(0,url.indexOf('?'));
+			}else{
+				method = url;
 			}
-			var child  = CP.spawn(proc.exec, proc.args,{
-				env  : proc.env,
-				cwd  : proc.cwd
+			if(method == ""){
+				method = "index"
+			}			
+			if(self[method]){
+				res.writeHead(200, {
+					'Content-Type': 'application/json'
+				});
+				res.end(JSON.stringify(
+					self[method](query,req.method)
+				));
+			}else{
+				throw {
+					code 	: "INVALID_ACTION",
+					message : "no such method '"+method+"'"
+				}
+			}
+		}catch(er){
+			res.writeHead(404, {
+				'Content-Type': 'application/json'
 			});
-			child.stdout.setEncoding('utf8');
-			child.stdout.on('data', function (data) {
-  				console.log(data);
-			});
-			child.stderr.setEncoding('utf8');
-			child.stderr.on('data', function (data) {
-  				console.error(data);
-			});
-			child.on('exit',function(){
-				proc.status = 'stopped'
-			})
-			proc.status  = 'running';
-			proc.pid     = child.pid;
-			PROCESSES[p] = child;
+			res.end(JSON.stringify(er));
 		}
-		this.http.listen(2987);
+		
+				
+	});
+
+	this.index = function(query,method){
+		var settings = program.config.settings();
+		return {
+			name 		: settings.name,
+			version 	: settings.version,
+			description : settings.description,
+			pid 		: process.pid,
+			license 	: settings.license,
+			author 		: settings.author,
+			repository 	: settings.repository,
+			bugs 		: settings.bugs
+		};
+	}
+
+	this.status = function(query,method){
+		return MON.status();
+	}
+
+	this.stop = function(query,method){
+		MON.terminate('SIGINT');
+		setTimeout(function(){
+			process.exit(code);
+		}, 2000);
+		return true;
+	}
+
+	this.start = function(){
+		MON.init(
+			program.config.apps()
+		);
+		http.listen(
+			program.config.port(),
+			program.config.host()
+		);
 		console.log("server started");
 	}
+
+	process.on('exit',function(code,signal){
+		self.stop(code,signal);
+	});
 }
 
-process.on('exit',function(code,signal){
-	terminate(code,signal);
-});
+
+module.exports = function(program){
+	return new SERVER(program);
+}

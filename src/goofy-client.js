@@ -1,11 +1,7 @@
 var REST = require('restler');
 
-module.exports = REST.service(function(base, user, pass) {
-	if(user && pass){
-		this.defaults.username = user;
-  		this.defaults.password = pass;
-	}
-  	this.baseURL  = base || "http://localhost:2987";
+var CLIENT = REST.service(function(program) {
+  	this.baseURL  = "http://localhost:2987";
 },{},{
 	stop: function() {
 		return this.get('/stop');
@@ -19,4 +15,9 @@ module.exports = REST.service(function(base, user, pass) {
 	process: function(process) {
 		return this.get('/processes/'+process);
 	}
-});;
+});
+
+
+module.exports = function(program){
+	return new CLIENT(program);
+}
