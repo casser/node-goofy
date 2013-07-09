@@ -3,11 +3,9 @@ var Table   = require('easy-table');
 var colors  = require('colors');
 
 function daemon(){
-	console.log("starting".green);
 	var cp 		= require('child_process');
 	var args 	= process.argv.slice(0,2);
 	args.push('run');
-	console.log(args);
 	var child = cp.spawn(args[0], args.slice(1), {
 		detached 	: true,
 		stdio 		: [ 'ignore','ignore', 'ignore']

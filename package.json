@@ -1,6 +1,6 @@
 {
 	"name"				: "goofy",
-	"version"			: "0.0.0",
+	"version"			: "0.0.1",
 	"description"		: "Process Manager",
 	"license"			: "BSD",
 	"readme"			: "README.md",
