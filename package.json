@@ -1,0 +1,21 @@
+{
+	"name"			: "goofy",
+	"version"		: "0.0.0",
+	"description"	: "Process Manager",
+	"main"			: "goofy.js",
+	"bin"			: {
+    	"goofy"		: "./bin/goofy"
+  	},
+	"dependencies"	: {
+		"restler"	: "2.0.1",
+		"commander"	: "1.2.0"
+	},
+	"repository"	: { 
+		"type"		: "git", 
+		"url"		: "https://github.com/casser/node-goofy.git" 
+	},
+	"scripts"		: {},
+	"author"		: "Sergey Mamyan <sergey.mamyan@gmail.com>",
+	"license"		: "BSD",
+	"readme"		: "README.md"
+}

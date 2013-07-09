@@ -1,0 +1,7 @@
+{
+	"redis"	   : {
+		"exec" : "./bin/redis-server",
+		"cwd"  : "/home/ubuntu/byus/byus-exec/redis",
+		"args" : ["redis.conf"]
+	}
+}
