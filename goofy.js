@@ -111,6 +111,6 @@ module.exports = function init(){
 	process.title = 'goofy'
 	program.config = require('./src/goofy-config');
 	program.config.init();
-	program.version(program.config.settings.version);
+	program.version(program.config.settings().version);
 	program.parse(process.argv);
 } ;
