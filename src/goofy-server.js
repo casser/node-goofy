@@ -1,147 +1,107 @@
-var HTTP 	= require('http');
-var PATH 	= require('path');
-var FS 		= require('fs');
-var QS      = require('querystring');
-var CP 		= require('child_process');
-var MON  	= require('./goofy-monitor');
+var CONNECT = require('connect');
+var APP     = CONNECT();
+var API		= require('./goofy-api.js');
+var CONF 	= require('./goofy-config.js');
 
-var CONFIG    = null;
-var PROCESSES = {};
-
-function terminate(code,signal){
-	for(var p in PROCESSES){
-		PROCESSES[p].kill(signal);
-	}
-	setTimeout(function(){
-		process.exit(0);
-	},1000);
-}
-
-function init(){
-	if(!CONFIG){
-		CONFIG = JSON.parse(
-			FS.readFileSync("goofy.json", "utf8")
-		);
-	}
-}
-
-function do_status(req,res){
-	res.writeHead(200, {
-		'Content-Type': 'application/json'
-	});
-	res.end(JSON.stringify("ok"));
-}
-
-function do_pid(req,res){
-	res.writeHead(200, {
-		'Content-Type': 'application/json'
-	});
-	res.end(JSON.stringify(process.pid));
-}
-
-function do_exit(req,res){
-	res.writeHead(200, {
-		'Content-Type': 'application/json'
-	});
-	res.end(JSON.stringify(process.pid));
-	terminate(0,'SIGHUP');
-}
-function do_error(req,res,error){
-	res.writeHead(404, {
-		'Content-Type': 'application/json'
-	});
-	res.end(JSON.stringify(error));	
-}
-function do_config(req,res){
-	res.writeHead(200, {
-		'Content-Type': 'application/json'
-	});
-	res.end(JSON.stringify(CONFIG));
-}
-
-
-
-function SERVER(program){
-	var self    = this;
-	var http 	= HTTP.createServer(function (req, res) {
-		try{
-			var url     = req.url.substring(1);
-			var query,method;
-			if(url.indexOf('?')>0){
-				query = QS.parse(url.substring(url.indexOf('?')+1));
-				method = url.substring(0,url.indexOf('?'));
-			}else{
-				method = url;
-			}
-			if(method == ""){
-				method = "index"
-			}			
-			if(self[method]){
-				res.writeHead(200, {
-					'Content-Type': 'application/json'
-				});
-				res.end(JSON.stringify(
-					self[method](query,req.method)
-				));
-			}else{
-				throw {
-					code 	: "INVALID_ACTION",
-					message : "no such method '"+method+"'"
-				}
-			}
-		}catch(er){
-			res.writeHead(404, {
-				'Content-Type': 'application/json'
-			});
-			res.end(JSON.stringify(er));
+function simplify(o){
+		var obj = o;
+		if(obj && typeof(obj['json'])=='function'){
+			obj = obj['json']();
 		}
-		
-				
-	});
-
-	this.index = function(query,method){
-		var settings = program.config.settings();
-		return {
-			name 		: settings.name,
-			version 	: settings.version,
-			description : settings.description,
-			pid 		: process.pid,
-			license 	: settings.license,
-			author 		: settings.author,
-			repository 	: settings.repository,
-			bugs 		: settings.bugs
-		};
-	}
-
-	this.status = function(query,method){
-		return MON.status();
-	}
-
-	this.stop = function(query,method){
-		MON.terminate('SIGINT');
-		setTimeout(function(){
-			process.exit(code);
-		}, 2000);
-		return true;
-	}
-
-	this.start = function(){
-		MON.init(
-			program.config.apps()
-		);
-		http.listen(
-			program.config.port(),
-			program.config.host()
-		);
-		console.log("server started");
-	}
-
-	process.on('exit',function(code,signal){
-		self.stop(code,signal);
-	});
+		if(obj instanceof Array){
+			var map = [];
+			for(var i in obj){
+				 map.push(simplify(obj[i]));
+			}
+			obj = map;
+		}else
+		if(typeof(obj)=='object'){
+			var map = {};
+			for(var i in obj){
+				 map[i] = simplify(obj[i]);
+			}
+			obj = map;
+		}
+		return obj;
 }
 
+APP.use(CONNECT.logger('dev'))
+APP.use(CONNECT.query());
+APP.use(CONNECT.json());
+APP.use(CONNECT.static(__dirname+'/../web'));
+APP.use(function(req, res, next){
 
-module.exports = function(program){
-	return new SERVER(program);
+	res.json = function(result){
+		this.setHeader('Content-Type', 'application/json');
+		this.end(JSON.stringify(simplify(result)));
+	},
+	res.success = function(result){
+		this.json({
+			status: 'success',
+			result: result
+		})
+	}
+	res.error  = function(result){
+		this.json({
+			status: 'error',
+			result: result
+		})
+	}
+	next()
+})
+APP.use('/info', function(req, res){
+	res.success(CONF);
+});
+APP.use('/terminate', function(req, res){
+	res.success(API.terminate());
+});
+APP.use('/apps', function(req, res){
+	res.json(API.apps());
+});
+APP.use('/start', function(req, res){
+	res.json(API.start());
+});
+APP.use('/stop', function(req, res){
+	res.json(API.stop(req.query.signal));
+});
+APP.use('/restart', function(req, res){
+	res.json(API.restart(req.query.signal));
+});
+APP.use('/status', function(req, res){
+	res.json(API.status());
+});
+APP.use('/logs', function(req, res){
+	if(req.query.app){
+		res.json(API.logs(req.query.app));
+	}else{
+		res.json(false)
+	}
+});
+
+APP.use('/install', function(req, res){
+	if(req.query.app){
+		API.install(req.query.app).on('install',function(data){
+			res.json(data);
+		});
+	}else{
+		res.json(false)
+	}
+});
+
+APP.use('/uninstall', function(req, res){
+	if(req.query.app){
+		API.uninstall(req.query.app).on('uninstall',function(data){
+			res.json(data);
+		});
+	}else{
+		res.json(false)
+	}
+});
+
+module.exports 	= {
+	start : function(){
+		process.title = 'goofyd';
+		APP.listen(CONF.GOOFY_PORT);
+		console.info(simplify(API.load()));
+	}
 }

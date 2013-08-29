@@ -1,116 +1,161 @@
-var program = require('commander');
-var Table   = require('easy-table');
-var colors  = require('colors');
+var PROGRAM = require('commander');
+var TABLE   = require('cli-table');
+var UTIL    = require('util');
+var CONFIG	= require('./src/goofy-config');
 
-function daemon(){
-	var cp 		= require('child_process');
-	var args 	= process.argv.slice(0,2);
-	args.push('run');
-	var child = cp.spawn(args[0], args.slice(1), {
-		detached 	: true,
-		stdio 		: [ 'ignore','ignore', 'ignore']
-	});
-	child.unref();
+
+function log(object){
+	console.log(UTIL.inspect(object,{
+		colors	: true,
+		depth	: null
+	}))
 }
 
-function daemon_run(options){
-	process.title = 'goofyd';
-	var server =  require('./src/goofy-server')(program);
-	server.start();
-}
+PROGRAM.command('daemon-io')
+.description("runs goofy io")
+.action(function cDaemonStart(){
+	require('./src/server').start();
+});
 
-function daemon_start(options){
-	var client = require('./src/goofy-client')(program);
+PROGRAM.command('cli')
+.description("runs goofy io")
+.action(function cDaemonStart(){
+	require('./src/cli');
+});
+
+PROGRAM.command('daemon-run')
+.description("runs goofy daemon")
+.action(function cDaemonStart(){
+	require('./src/goofy-server').start();
+});
+
+PROGRAM.command('daemon-start')
+.description("start goofy daemon")
+.action(function cDaemonStart(){
+	var CLIENT = require('./src/goofy-client');
+	function fork(){
+		var cp 		= require('child_process');
+		var args 	= process.argv.slice(0,2);
+		args.push('daemon-run');
+		var child = cp.spawn(args[0], args.slice(1), {
+			detached 	: true,
+			stdio 		: [ 'ignore','ignore', 'ignore']
+		});
+		child.unref();
+	}
 	var retries = 10;
-	client.status().on('complete',function(result){
-		if(result instanceof Error){
+	function tryStart(){
+		var info = CLIENT.info()
+		info.on('error',function(error){
 			if(retries == 10){
-				daemon();	
+				fork();
 			}
 			if(retries-- > 0){
-				this.retry(1000)
+				setTimeout(tryStart,1000)
 			}else{
-				throw result;
+				console.log(error);
+				console.log("GOOFY FAILED TO STARTED".red);
 			}
+		});
+		info.on('success',function(){
+			console.log("GOOFY STARTED".green);
+		})
+	}
+	tryStart();
+});
+
+PROGRAM.command('daemon-stop')
+.description("stop goofy daemon")
+.action(function cDaemonStop(){
+	var CLIENT 		= require('./src/goofy-client');
+	var terminate   = CLIENT.terminate()
+	terminate.on('error',function(error){
+		if(error instanceof Error && error.code == 'ECONNREFUSED'){
+			console.log("GOOFY ALREADY STOPPED".yellow);
 		}else{
-			console.log("started".green);
+			console.log(error);
+			console.log("GOOFY FAILED TO STOP".red);
 		}
 	});
-}
+	terminate.on('success',function(version){
+		console.log("GOOFY STOPPED".green);
+	})
+});
 
-function daemon_status(options){
-	var client = require('./src/goofy-client')(program);
-	client.status().on('complete', function(result){
-		if(result instanceof Error){
-			console.log("stopped".yellow);
+PROGRAM.command('daemon-info')
+.description("prints daemon information")
+.action(function cDaemonStatus(){
+	require('./src/goofy-client').info()
+	.on('error',function(error){
+		if(error instanceof Error && error.code == 'ECONNREFUSED'){
+			console.log("GOOFY STOPPED".yellow);
 		}else{
-			var t = new Table();
-			result.forEach(function (item) {
-				t.cell('PID', item.pid);
-				t.cell('NAME', item.name);
-				t.cell('RUNS', item.runs);
-				t.cell('STATE', item.running ? 
-					'running'.green : 
-					'stopped'.red
-				);
-				t.newRow();
-			});
-			console.log(t.toString());
+			console.log(error);
+			console.log("GOOFY FAILED TO GET INFO".red);
 		}
+	})
+	.on('success',function(info){
+		log(info);
 	});
-}
+});
 
-function daemon_stop(options){
-	var client = require('./src/goofy-client')(program);
-	client.stop().on('complete', function(result){
-		if(result instanceof Error){
-			console.log("failed".red);
-		}else{
-			console.log("stopped".green);
+PROGRAM.command('config [key]')
+.description("print configuration for 'key', or all configurations if 'key' not provided")
+.action(function cConfig(cmd){
+
+	if(typeof(cmd)=='string'){
+		console.info(CONFIG[cmd]);
+	}else{
+		var t = new TABLE({
+			head	: ['KEY'.green, 'VALUE'],
+			style 	: {compact : true, 'padding-left' : 1}
+		});
+		for(i in CONFIG){
+			t.push([i.green,CONFIG[i]]);
 		}
-	});
-}
+		console.log(t.toString())
+	}
+});
 
-program
-	.command('test')
-	.description('test command')
-	.action(function(cmd, options){
-		console.log(program.config.crd);
-		console.log(program.config.settings);
-	});
+PROGRAM.command('start [app]')
+.description("start provided application, or all applications if 'app' not provided")
+.action(function cStart(){
 
-program
-	.command('run')
-	.description('run daemon')
-	.action(function(cmd, options){
-		daemon_run(options);
-	});
+});
 
-program
-	.command('start')
-	.description('start daemon')
-	.action(function(cmd, options){
-		daemon_start(options);
-	});
+PROGRAM.command('stop [app]')
+.description("stop provided application, or all applications if 'app' not provided")
+.action(function cStop(){
 
-program
-	.command('stop')
-	.description('stop daemon')
-	.action(function(cmd, options){
-		daemon_stop(options);
-	});
+});
 
-program
-	.command('status')
-	.description('daemon status')
-	.action(function(cmd, options){
-		daemon_status(options);
-	});
+PROGRAM.command('status [app]')
+.description("prints status of provided application, or all applications if 'app' not provided")
+.action(function cStatus(){
+
+});
+
+PROGRAM.command('install <app>')
+.description("install application")
+.action(function cInstall(){
+
+});
+
+PROGRAM.command('uninstall <app>')
+.description("uninstall application")
+.action(function cUninstall(){
+
+});
+
+PROGRAM.command('show <app>')
+.description("shows application info")
+.action(function cShow(){
+
+});
 
 module.exports = function init(){
-	process.title = 'goofy'
-	program.config = require('./src/goofy-config');
-	program.config.init();
-	program.version(program.config.settings().version);
-	program.parse(process.argv);
-} ;
+	process.title  = 'goofy';
+	PROGRAM.version(CONFIG.GOOFY_VERSION);
+	PROGRAM.parse(process.argv);
+};
+
