@@ -1,30 +1,30 @@
 {
-	"name"				: "goofy",
-	"version"			: "0.0.2",
-	"description"		: "Process Manager",
-	"license"			: "BSD",
-	"readme"			: "README.md",
-	"author"			: {
-		"name"			: "Sergey Mamyan",
-		"email"			: "sergey.mamyan@gmail.com"
-	},
-	"main"				: "goofy.js",
-	"bin"				: {
-		"goofy"			: "./bin/goofy"
-	},
-	"scripts"			: {},
-	"dependencies"		: {
-		"colors"		: "0.6.0-1",
-		"easy-table"	: "0.2.0",
-		"byline"		: "2.0.3",
-		"restler"		: "2.0.1",
-		"commander"		: "1.2.0"
-	},
-	"repository"		: {
-		"type"			: "git",
-		"url"			: "https://github.com/casser/node-goofy.git"
-	},
-	"bugs"				: {
-		"url"			: "https://github.com/casser/node-goofy/issues"
-	}	
+  "name"			: "goofy",
+  "version"			: "0.0.6",
+  "description"		: "Process Manager",
+  "license"			: "BSD",
+  "readme"			: "README.md",
+  "author"			: {
+    "name"			: "Sergey Mamyan",
+    "email"			: "sergey.mamyan@gmail.com"
+  },
+  "main"			: "goofy.js",
+  "bin"				: {
+    "goofy"			: "./bin/goofy"
+  },
+  "scripts"			: {},
+  "dependencies"	: {
+  	"js-class"		: "0.0.2",
+    "connect"		: "2.8.5",
+    "colors"		: "0.6.0-1",
+    "cli-table"		: "0.2.0",
+    "commander"		: "1.2.0"
+  },
+  "repository"		: {
+    "type"			: "git",
+    "url"			: "https://github.com/casser/node-goofy.git"
+  },
+  "bugs"			: {
+    "url"			: "https://github.com/casser/node-goofy/issues"
+  }
 }
